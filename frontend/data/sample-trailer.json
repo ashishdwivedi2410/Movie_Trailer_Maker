@@ -1,0 +1,52 @@
+{
+  "trailer_id": "dialect_region_v1",
+  "audience": "dialect-region viewers",
+  "duration_seconds": 42,
+  "audience_promise": "A tense family mystery told in a familiar voice",
+  "video_url": "../assets/placeholder/poster-placeholder.svg",
+  "segments": [
+    {
+      "source_in": "00:02:14.200",
+      "source_out": "00:02:18.600",
+      "video": "scene_07",
+      "audio": "dialogue_and_music",
+      "subtitle": "dialect_region_a",
+      "reason": "Establishes the sibling conflict without revealing its cause",
+      "evidence": ["scene:07", "contract:music-03"],
+      "risk_flags": []
+    },
+    {
+      "source_in": "00:04:41.000",
+      "source_out": "00:04:45.900",
+      "video": "scene_12",
+      "audio": "voice_over",
+      "subtitle": "dialect_region_a",
+      "reason": "Raises stakes by hinting at the missing inheritance",
+      "evidence": ["scene:12"],
+      "risk_flags": ["spoiler-risk-low"]
+    },
+    {
+      "source_in": "00:11:02.400",
+      "source_out": "00:11:07.100",
+      "video": "scene_19",
+      "audio": "dialogue_only",
+      "subtitle": "dialect_region_b",
+      "reason": "Delivers the emotional turn that closes the promise",
+      "evidence": ["scene:19", "contract:actor-lead-02"],
+      "risk_flags": []
+    }
+  ],
+  "validation": {
+    "status": "PASS_WITH_WARNINGS"
+  },
+  "warnings": [
+    "Scene 12 contains a plot detail flagged as low spoiler risk",
+    "Dialect B subtitle track has not been reviewed by a native speaker yet"
+  ],
+  "required_approvals": [
+    "Legal sign-off on contract:actor-lead-02 promotional-use terms",
+    "Regional marketing lead approval for dialect_region_b subtitles"
+  ],
+  "estimated_cost": "$18.40",
+  "cost_fallback_plan": "Drop scene_12 voice-over pass to reduce model-call cost to approximately $11.90"
+}

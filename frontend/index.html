@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Movie Trailer Maker</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/output.css" />
+</head>
+<body>
+  <div class="page">
+
+    <header class="page-header">
+      <h1>Movie Trailer Maker</h1>
+      <p class="meta">Assemble a trailer package from source footage, scenes, dialogue and campaign rules.</p>
+    </header>
+
+    <form id="trailer-form" novalidate>
+
+      <!-- 1. Episode package -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Episode package</h2>
+          <span class="section-number">1 / 8</span>
+        </div>
+        <div class="field required">
+          <label for="input-episode-files">Episode video or clips</label>
+          <span class="hint">5–25 minute episode, or a set of short clips, with stable timecodes.</span>
+          <div class="file-upload">
+            <input type="file" id="input-episode-files" name="episode_files" accept="video/*" multiple />
+            <ul class="file-list" id="episode-file-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Scene descriptions -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Scene descriptions</h2>
+          <span class="section-number">2 / 8</span>
+        </div>
+        <div class="field required">
+          <label for="scene-descriptions">Scene descriptions</label>
+          <span class="hint">Human and/or AI descriptions of each scene.</span>
+          <textarea id="scene-descriptions" name="scene_descriptions" placeholder="Scene 1: ..."></textarea>
+        </div>
+        <div class="field">
+          <label for="scene-descriptions-file">Or upload as a file</label>
+          <div class="file-upload">
+            <input type="file" id="scene-descriptions-file" name="scene_descriptions_file" accept=".json,.txt" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Dialogue and subtitles -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Dialogue &amp; subtitles</h2>
+          <span class="section-number">3 / 8</span>
+        </div>
+        <div class="field required">
+          <label for="dialogue-text">Source dialogue</label>
+          <textarea id="dialogue-text" name="dialogue_text" placeholder="Paste or type the source dialogue..."></textarea>
+        </div>
+        <div class="field required">
+          <label for="subtitle-dialect-1">Subtitle track — Dialect 1</label>
+          <span class="hint">.srt or .vtt</span>
+          <div class="file-upload">
+            <input type="file" id="subtitle-dialect-1" name="subtitle_dialect_1" accept=".srt,.vtt" />
+          </div>
+        </div>
+        <div class="field required">
+          <label for="subtitle-dialect-2">Subtitle track — Dialect 2</label>
+          <span class="hint">.srt or .vtt</span>
+          <div class="file-upload">
+            <input type="file" id="subtitle-dialect-2" name="subtitle_dialect_2" accept=".srt,.vtt" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Rating policies -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Rating policies</h2>
+          <span class="section-number">4 / 8</span>
+        </div>
+        <div class="field required">
+          <label for="rating-policies-file">Rating policy file</label>
+          <span class="hint">Rules for Family, Young Adult and Regional campaigns (.json or .pdf).</span>
+          <div class="file-upload">
+            <input type="file" id="rating-policies-file" name="rating_policies_file" accept=".json,.pdf" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Contracts -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Contracts</h2>
+          <span class="section-number">5 / 8</span>
+        </div>
+        <div class="field required">
+          <label for="contracts-file">Contracts file</label>
+          <span class="hint">Actor, music, territory and promotional-use restrictions (.json or .pdf).</span>
+          <div class="file-upload">
+            <input type="file" id="contracts-file" name="contracts_file" accept=".json,.pdf" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. Audience profiles -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Audience profiles</h2>
+          <span class="section-number">6 / 8</span>
+        </div>
+        <div class="field">
+          <label for="audience-profiles-file">Audience profiles</label>
+          <span class="hint">Aggregated preferences and engagement patterns. Upload a file, or leave blank to use backend data.</span>
+          <div class="file-upload">
+            <input type="file" id="audience-profiles-file" name="audience_profiles_file" accept=".json,.csv" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. Historic performance -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Historic performance</h2>
+          <span class="section-number">7 / 8</span>
+        </div>
+        <div class="field">
+          <label for="historic-performance-file">Historic performance</label>
+          <span class="hint">Metrics from earlier campaigns. Upload a file, or leave blank to use backend data.</span>
+          <div class="file-upload">
+            <input type="file" id="historic-performance-file" name="historic_performance_file" accept=".json,.csv" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. Cost sheet -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Cost sheet</h2>
+          <span class="section-number">8 / 8</span>
+        </div>
+        <div class="field">
+          <label for="cost-sheet-file">Cost sheet</label>
+          <span class="hint">Processing and model-call costs. Upload a file, or leave blank to use backend data.</span>
+          <div class="file-upload">
+            <input type="file" id="cost-sheet-file" name="cost_sheet_file" accept=".json,.csv" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Category selector -->
+      <section class="section">
+        <div class="section-title">
+          <h2>Trailer category</h2>
+        </div>
+        <fieldset class="category-choices">
+          <legend class="visually-hidden">Choose a trailer category</legend>
+
+          <label class="category-option">
+            <input type="radio" id="category-family" name="category" value="family" />
+            <span class="option-text">
+              <strong>Family viewers</strong>
+              <span>General audience, broadest content restrictions.</span>
+            </span>
+          </label>
+
+          <label class="category-option">
+            <input type="radio" id="category-young-adult" name="category" value="young_adult" />
+            <span class="option-text">
+              <strong>Young Adult viewers</strong>
+              <span>Older teen audience, moderate content restrictions.</span>
+            </span>
+          </label>
+
+          <label class="category-option">
+            <input type="radio" id="category-dialect-region" name="category" value="dialect_region" />
+            <span class="option-text">
+              <strong>Dialect-region viewers</strong>
+              <span>Localized campaign for a specific dialect region.</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="dialect-dropdown" id="dialect-dropdown-wrapper" hidden>
+          <div class="field">
+            <label for="dialect-select">Dialect</label>
+            <select id="dialect-select" name="dialect">
+              <option value="">Loading dialects…</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <div class="btn-row">
+        <button type="submit" class="btn" id="submit-btn">Generate Trailer</button>
+      </div>
+    </form>
+
+    <!-- Processing state -->
+    <section class="section processing" id="processing-section" hidden>
+      <h2><span class="spinner" aria-hidden="true"></span>Generating your trailer…</h2>
+      <ul class="stage-list" id="stage-list"></ul>
+    </section>
+
+    <!-- Error state -->
+    <section class="error-state" id="error-state" hidden>
+      <h3>Something went wrong</h3>
+      <p id="error-message">The request could not be completed.</p>
+      <button type="button" class="btn btn-secondary" id="retry-btn">Dismiss</button>
+    </section>
+
+    <!-- Output -->
+    <section class="section" id="output-section" hidden>
+      <div class="section-title">
+        <h2>Trailer output</h2>
+      </div>
+
+      <div class="video-output">
+        <video id="trailer-video" controls poster="assets/placeholder/poster-placeholder.svg" hidden></video>
+      </div>
+
+      <div id="status-banner" class="status-banner"></div>
+
+      <h3>Creative brief</h3>
+      <div id="creative-brief"></div>
+
+      <hr class="rule" />
+
+      <h3>Edit decision list</h3>
+      <table class="edl-table">
+        <caption class="visually-hidden">Segment-by-segment edit decision list</caption>
+        <thead>
+          <tr>
+            <th>Timecodes</th>
+            <th>Video</th>
+            <th>Audio</th>
+            <th>Subtitle</th>
+            <th>Reason</th>
+            <th>Evidence</th>
+            <th>Risk flags</th>
+          </tr>
+        </thead>
+        <tbody id="edl-table-body"></tbody>
+      </table>
+
+      <div class="notes-block" id="notes-block"></div>
+    </section>
+
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

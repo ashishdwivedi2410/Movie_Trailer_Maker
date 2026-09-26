@@ -1,0 +1,177 @@
+/* =========================================================
+   Movie Trailer Maker — components.css
+   Form fields, file uploads, buttons, dropdowns, radio cards.
+   ========================================================= */
+
+/* Field groups */
+.field {
+  margin-bottom: var(--space-4);
+}
+
+.field label,
+.field legend {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: var(--space-1);
+  padding: 0;
+  border: none;
+}
+
+.field .hint {
+  display: block;
+  color: var(--color-ink-soft);
+  font-size: 0.85rem;
+  margin-bottom: var(--space-2);
+}
+
+.field textarea,
+.field input[type="text"],
+.field select {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+
+.field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.field select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-ink-soft) 50%),
+                     linear-gradient(135deg, var(--color-ink-soft) 50%, transparent 50%);
+  background-position: calc(100% - 18px) center, calc(100% - 13px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: var(--space-6);
+}
+
+/* File upload — plain bordered dropzone, no icons/gradients */
+.file-upload {
+  border: 1px dashed var(--color-border-strong);
+  padding: var(--space-4);
+  text-align: left;
+  background: var(--color-bg);
+}
+
+.file-upload input[type="file"] {
+  display: block;
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+}
+
+.file-upload .file-list {
+  margin-top: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  list-style: none;
+  padding: 0;
+}
+
+.file-upload .file-list li {
+  padding: 2px 0;
+}
+
+.field.required label::after {
+  content: " *";
+  color: var(--color-error);
+}
+
+.is-invalid {
+  border-color: var(--color-error) !important;
+}
+
+.field-error {
+  color: var(--color-error);
+  font-size: 0.85rem;
+  margin: var(--space-1) 0 0 0;
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: #ffffff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.btn:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn:disabled {
+  background: var(--color-border-strong);
+  border-color: var(--color-border-strong);
+  color: var(--color-ink-soft);
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--color-bg);
+}
+
+.btn-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-5);
+}
+
+/* Category selector — plain radio list, not "cards" */
+.category-choices {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.category-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.category-option:last-child {
+  border-bottom: none;
+}
+
+.category-option input[type="radio"] {
+  margin-top: 4px;
+}
+
+.category-option .option-text strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.category-option .option-text span {
+  color: var(--color-ink-soft);
+  font-size: 0.85rem;
+}
+
+.dialect-dropdown {
+  margin-top: var(--space-3);
+  padding-left: calc(1em + var(--space-2));
+}
