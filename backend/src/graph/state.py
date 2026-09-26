@@ -30,6 +30,7 @@ class PipelineState(TypedDict, total=False):
     as_of_date: str | None
     max_repair_attempts: int
     decision_log: DecisionLog
+    cost_baseline_usd: float  # client.total_cost_usd snapshot when this audience's run started
 
     # --- produced as the graph runs ---
     audience_promise: AudiencePromise

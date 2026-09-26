@@ -20,6 +20,7 @@ from src.agents.composer import Composer
 from src.agents.constraint_compiler import ConstraintCompiler
 from src.agents.story_mapper import StoryMapper
 from src.agents.verifier import SemanticVerifier
+from src.config import settings
 from src.graph.state import PipelineState
 from src.ingest.contract_parser import parse_contracts
 from src.ingest.episode_loader import load_dialogue, load_episode, load_subtitle_track
@@ -190,6 +191,19 @@ def build_pipeline(
             warnings=warnings,
             approvals_required=approvals_required,
         )
+        # Budget guard (ARCHITECTURE.md section 8): price what this
+        # audience's run actually spent through `client` (the single choke
+        # point for every LLM call - see src/llm/client.py) by diffing
+        # against the snapshot taken before this audience's graph started,
+        # rather than the client's run-wide cumulative total.
+        cost_baseline = state.get("cost_baseline_usd", 0.0)
+        estimated_cost_usd = round(client.total_cost_usd - cost_baseline, 6)
+        lower_cost_fallback = (
+            "budget_exceeded: repair loop consumed more than settings.budget_usd "
+            "for this audience - review before shipping"
+            if client.over_budget()
+            else None
+        )
         trailer_plan = TrailerPlan(
             trailer_id=f"{state['audience']}_v1",
             audience=state["audience"],
@@ -197,8 +211,13 @@ def build_pipeline(
             audience_promise=state["audience_promise"].promise,
             segments=state["segments"],
             validation=validation,
+            estimated_cost_usd=estimated_cost_usd,
+            lower_cost_fallback=lower_cost_fallback,
         )
-        state["decision_log"].record(stage="finalize", audience=state["audience"], notes=status)
+        state["decision_log"].record(
+            stage="finalize", audience=state["audience"], notes=status,
+            cost_usd=estimated_cost_usd,
+        )
         return {"trailer_plan": trailer_plan, "validation": validation}
 
     def route_entry(state: PipelineState) -> Literal["strategize", "compose"]:
@@ -295,6 +314,7 @@ def run_all_trailers(
             "decision_log": decision_log,
             "excluded_scene_ids": [],
             "repair_attempts": 0,
+            "cost_baseline_usd": client.total_cost_usd,
         }
         final_state = app.invoke(initial_state)
         trailer_plan = final_state["trailer_plan"]
@@ -378,6 +398,7 @@ def apply_change(
             "decision_log": decision_log,
             "excluded_scene_ids": newly_excluded,
             "repair_attempts": 0,
+            "cost_baseline_usd": client.total_cost_usd,
         }
         final_state = app.invoke(repair_state)
         trailer_plan = final_state["trailer_plan"]
