@@ -91,6 +91,43 @@ def check_spoilers_literal(segments: list[Segment], story_map: StoryMap) -> list
     ]
 
 
+def check_story_truth(segment: Segment, story_map: StoryMap) -> list[str]:
+    """Story-truth check (#3 in ARCHITECTURE.md section 3.6): a segment built
+    on a relationship the Story Mapper flagged as `source_conflict` - meaning
+    the two dialect subtitle tracks disagree on what that relationship even
+    is (section 3.2) - cannot ship as settled fact. Grounded, not merely
+    plausible, is the bar (design principle 2), and an unresolved source
+    disagreement fails that bar.
+
+    This is the direct handler for the "a dialect subtitle changes a
+    relationship" surprise event (section 7): the Story Mapper detects and
+    records the conflict on the Relationship itself; this check is what
+    stops that flag from being silently dropped once segments are composed,
+    by turning it into a named human-approval requirement (section 1: fail
+    closed) instead of the trailer quietly shipping with one track's version
+    of the truth.
+
+    Returns approval-required reasons, empty if the segment doesn't cite any
+    scene involved in an unresolved relationship conflict."""
+    cited_scene_ids = {segment.video}
+    cited_scene_ids.update(
+        ref.split(":", 1)[1] for ref in segment.evidence if ref.startswith("scene:")
+    )
+
+    reasons = []
+    for relationship in story_map.relationships:
+        if not relationship.source_conflict:
+            continue
+        if cited_scene_ids.intersection(relationship.evidence_scene_ids):
+            characters = " & ".join(relationship.characters)
+            reasons.append(
+                f"story_truth: relationship '{characters}' (claimed as '{relationship.kind}') "
+                f"is disputed between dialect subtitle tracks and needs human resolution of "
+                f"the canonical track before this segment ships (video={segment.video})"
+            )
+    return reasons
+
+
 def check_accessibility(segment: Segment) -> bool:
     """True if the segment carries readable subtitle/text content - a trailer
     should not depend only on an audio cue to convey meaning."""
@@ -108,14 +145,19 @@ def run_deterministic_checks(
     as_of_date: str | None = None,
 ) -> dict:
     """Runs every deterministic check and returns a summary:
-    {"checks_run": [...], "failures": [...], "warnings": [...]}.
-    Any failure should block the trailer (or send it back to the Composer for
-    repair); warnings should not block it but must be surfaced in the final
-    ValidationResult.warnings.
+    {"checks_run": [...], "failures": [...], "warnings": [...],
+    "approvals_required": [...]}. Any failure should block the trailer (or
+    send it back to the Composer for repair); warnings should not block it
+    but must be surfaced in the final ValidationResult.warnings;
+    approvals_required (currently just the story-truth check) means the
+    trailer can ship but needs a named human sign-off - it should be merged
+    into ValidationResult.approvals_required alongside the semantic bias
+    check's warnings, per ARCHITECTURE.md section 1 ("fail closed").
     """
     checks_run: list[str] = []
     failures: list[str] = []
     warnings: list[str] = []
+    approvals_required: list[str] = []
 
     checks_run.append("source_accuracy")
     for seg in segments:
@@ -140,9 +182,18 @@ def run_deterministic_checks(
     for fact_id in check_spoilers_literal(segments, story_map):
         failures.append(f"spoiler: segment set includes a scene protected by fact '{fact_id}'")
 
+    checks_run.append("story_truth")
+    for seg in segments:
+        approvals_required.extend(check_story_truth(seg, story_map))
+
     checks_run.append("accessibility")
     for seg in segments:
         if not check_accessibility(seg):
             warnings.append(f"accessibility: segment for video={seg.video} has no subtitle text")
 
-    return {"checks_run": checks_run, "failures": failures, "warnings": warnings}
+    return {
+        "checks_run": checks_run,
+        "failures": failures,
+        "warnings": warnings,
+        "approvals_required": approvals_required,
+    }

@@ -37,16 +37,17 @@
     }
   ],
   "validation": {
-    "status": "PASS_WITH_WARNINGS"
+    "status": "PASS_WITH_WARNINGS",
+    "checks_run": ["source_accuracy", "rights", "rating", "timing"],
+    "warnings": [
+      "Scene 12 contains a plot detail flagged as low spoiler risk",
+      "Dialect B subtitle track has not been reviewed by a native speaker yet"
+    ],
+    "approvals_required": [
+      "Legal sign-off on contract:actor-lead-02 promotional-use terms",
+      "Regional marketing lead approval for dialect_region_b subtitles"
+    ]
   },
-  "warnings": [
-    "Scene 12 contains a plot detail flagged as low spoiler risk",
-    "Dialect B subtitle track has not been reviewed by a native speaker yet"
-  ],
-  "required_approvals": [
-    "Legal sign-off on contract:actor-lead-02 promotional-use terms",
-    "Regional marketing lead approval for dialect_region_b subtitles"
-  ],
-  "estimated_cost": "$18.40",
-  "cost_fallback_plan": "Drop scene_12 voice-over pass to reduce model-call cost to approximately $11.90"
+  "estimated_cost_usd": 18.40,
+  "lower_cost_fallback": "Drop scene_12 voice-over pass to reduce model-call cost to approximately $11.90"
 }

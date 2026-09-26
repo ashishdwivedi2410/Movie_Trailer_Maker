@@ -106,7 +106,7 @@ The Composer and Verifier are separate LangGraph nodes with separate prompts and
 | Preferred model becomes unavailable | LLM client wrapper (Section 8) | Fallback model list + circuit breaker; mock/replay mode as ultimate fallback |
 
 ## 8. Budget, model fallback, and mock/replay mode
-- A budget guard reads the cost sheet at startup and tracks spend through the run; if a trailer would exceed budget, it falls back to a template/rule-based composition pass instead of another LLM call, and this fallback plan is what's reported in `estimated_cost` / `lower_cost_fallback`.
+- A budget guard reads the cost sheet at startup and tracks spend through the run; if a trailer would exceed budget, it falls back to a template/rule-based composition pass instead of another LLM call, and this fallback plan is what's reported in `estimated_cost_usd` / `lower_cost_fallback`.
 - LLM calls go through a thin client wrapper: primary model → fallback model → cached/replay response, with a simple circuit breaker so one flaky call doesn't stall the whole run.
 - Mock/replay mode records every prompt→response pair keyed by an input hash during a real run, then replays them deterministically — this lets the evaluator run the full pipeline without API keys and also *is* the fallback path for the "model unavailable" surprise event.
 

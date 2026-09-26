@@ -39,5 +39,6 @@ class PipelineState(TypedDict, total=False):
     failures: list[str]
     warnings: list[str]
     bias_warnings: list[str]
+    story_truth_approvals: list[str]
     validation: ValidationResult
     trailer_plan: TrailerPlan

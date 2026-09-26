@@ -84,10 +84,15 @@ function renderNotes(trailer) {
   const notes = document.getElementById("notes-block");
   if (!notes) return;
 
-  const warnings = trailer.warnings || [];
-  const approvals = trailer.required_approvals || [];
-  const cost = trailer.estimated_cost;
-  const fallback = trailer.cost_fallback_plan;
+  // These live under `validation` (ValidationResult) and use the
+  // `_usd` / `lower_cost_fallback` names from TrailerPlan in
+  // backend/src/models/trailer.py - NOT top-level trailer.warnings /
+  // trailer.required_approvals / trailer.estimated_cost /
+  // trailer.cost_fallback_plan, which don't exist on the real schema.
+  const warnings = trailer.validation?.warnings || [];
+  const approvals = trailer.validation?.approvals_required || [];
+  const cost = trailer.estimated_cost_usd;
+  const fallback = trailer.lower_cost_fallback;
 
   const warningsHTML = warnings.length
     ? `<h3>Warnings & assumptions</h3><ul>${warnings.map((w) => `<li>${escapeHTML(w)}</li>`).join("")}</ul>`
@@ -97,9 +102,11 @@ function renderNotes(trailer) {
     ? `<h3>Approvals still required</h3><ul>${approvals.map((a) => `<li>${escapeHTML(a)}</li>`).join("")}</ul>`
     : "";
 
-  const costHTML = cost !== undefined
+  // estimated_cost_usd is a plain number (e.g. 18.4), not a pre-formatted
+  // "$18.40" string, so format it here rather than printing it raw.
+  const costHTML = cost !== undefined && cost !== null
     ? `<h3>Cost</h3>
-       <div class="cost-line"><span>Estimated processing cost</span><span>${escapeHTML(String(cost))}</span></div>
+       <div class="cost-line"><span>Estimated processing cost</span><span>${escapeHTML(`$${Number(cost).toFixed(2)}`)}</span></div>
        ${fallback ? `<p class="meta">Fallback: ${escapeHTML(fallback)}</p>` : ""}`
     : "";
 

@@ -13,7 +13,7 @@ independent, not agent discipline. See ARCHITECTURE.md section 6.
 from dataclasses import dataclass
 from typing import Literal
 
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 
 from src.agents.audience_strategist import AudienceStrategist
 from src.agents.composer import Composer
@@ -26,9 +26,13 @@ from src.ingest.episode_loader import load_dialogue, load_episode, load_subtitle
 from src.ingest.policy_parser import parse_policies
 from src.llm.client import LLMClient
 from src.models.constraint_map import ConstraintMap
+from src.models.promise import AudiencePromise
+from src.models.scene import SceneRegistry
 from src.models.story_map import StoryMap
 from src.models.trailer import TrailerPlan, ValidationResult
 from src.observability.decision_log import DecisionLog
+from src.replanning.change_handler import ChangeHandler, ReplanResult
+from src.replanning.evidence_graph import EvidenceGraph
 from src.verification.checks import (
     check_rating,
     check_rights,
@@ -129,6 +133,7 @@ def build_pipeline(
             "failures": failures,
             "warnings": det_result["warnings"],
             "bias_warnings": bias_warnings,
+            "story_truth_approvals": det_result["approvals_required"],
             "excluded_scene_ids": new_excluded,
             "repair_attempts": state.get("repair_attempts", 0) + (1 if failures else 0),
         }
@@ -160,10 +165,16 @@ def build_pipeline(
         failures = state.get("failures", [])
         warnings = state.get("warnings", [])
         bias_warnings = state.get("bias_warnings", [])
+        story_truth_approvals = state.get("story_truth_approvals", [])
+        # Two independent sources of "needs a named human sign-off, not a
+        # hard reject" - the semantic bias check and the deterministic
+        # story-truth check (unresolved relationship conflicts) - are merged
+        # here, deduped but neither one silently dropping the other.
+        approvals_required = list(dict.fromkeys(bias_warnings + story_truth_approvals))
 
         if failures:
             status = "FAIL"
-        elif bias_warnings:
+        elif approvals_required:
             status = "NEEDS_APPROVAL"
         elif warnings:
             status = "PASS_WITH_WARNINGS"
@@ -174,10 +185,10 @@ def build_pipeline(
             status=status,
             checks_run=[
                 "source_accuracy", "rights", "rating", "timing",
-                "spoilers_literal", "spoilers_implied", "bias", "accessibility",
+                "spoilers_literal", "spoilers_implied", "story_truth", "bias", "accessibility",
             ],
             warnings=warnings,
-            approvals_required=list(bias_warnings),
+            approvals_required=approvals_required,
         )
         trailer_plan = TrailerPlan(
             trailer_id=f"{state['audience']}_v1",
@@ -190,13 +201,20 @@ def build_pipeline(
         state["decision_log"].record(stage="finalize", audience=state["audience"], notes=status)
         return {"trailer_plan": trailer_plan, "validation": validation}
 
+    def route_entry(state: PipelineState) -> Literal["strategize", "compose"]:
+        """A fresh run has no `audience_promise` yet and starts at Strategist,
+        as before. `apply_change` (below) seeds `audience_promise` up front
+        when re-running a trailer after a world-state change, so a replan
+        re-enters at Composer directly and never re-invokes Strategist."""
+        return "compose" if state.get("audience_promise") is not None else "strategize"
+
     graph = StateGraph(PipelineState)
     graph.add_node("strategize", node_strategize)
     graph.add_node("compose", node_compose)
     graph.add_node("verify", node_verify)
     graph.add_node("finalize", node_finalize)
 
-    graph.set_entry_point("strategize")
+    graph.add_conditional_edges(START, route_entry, {"strategize": "strategize", "compose": "compose"})
     graph.add_edge("strategize", "compose")
     graph.add_edge("compose", "verify")
     graph.add_conditional_edges("verify", should_repair, {"compose": "compose", "finalize": "finalize"})
@@ -210,6 +228,15 @@ class RunResult:
     story_map: StoryMap
     constraint_map: ConstraintMap
     trailers: dict[str, TrailerPlan]
+    # Everything below is what apply_change() needs to replan later without
+    # re-deriving it: the live EvidenceGraph built from this run's real
+    # trailers, and enough context to re-run compose -> verify for just the
+    # affected audiences (see apply_change).
+    evidence_graph: EvidenceGraph
+    scene_registry: SceneRegistry
+    audience_promises: dict[str, AudiencePromise]
+    territory: str
+    duration_by_audience: dict[str, int]
 
 
 def run_all_trailers(
@@ -251,6 +278,8 @@ def run_all_trailers(
 
     app = build_pipeline(client)
     results: dict[str, TrailerPlan] = {}
+    promises: dict[str, AudiencePromise] = {}
+    evidence_graph = EvidenceGraph()
 
     for audience in AUDIENCES:
         initial_state: PipelineState = {
@@ -268,6 +297,92 @@ def run_all_trailers(
             "repair_attempts": 0,
         }
         final_state = app.invoke(initial_state)
-        results[audience] = final_state["trailer_plan"]
+        trailer_plan = final_state["trailer_plan"]
+        results[audience] = trailer_plan
+        promises[audience] = final_state["audience_promise"]
+        # This is the real wiring: every trailer this run actually produces
+        # gets indexed into a live EvidenceGraph, so apply_change() below has
+        # a real graph to walk instead of one only unit tests construct.
+        evidence_graph.index(trailer_plan)
 
-    return RunResult(story_map=story_map, constraint_map=constraint_map, trailers=results)
+    return RunResult(
+        story_map=story_map,
+        constraint_map=constraint_map,
+        trailers=results,
+        evidence_graph=evidence_graph,
+        scene_registry=registry,
+        audience_promises=promises,
+        territory=territory,
+        duration_by_audience=duration_by_audience,
+    )
+
+
+def apply_change(
+    run_result: RunResult,
+    changed_fact: str,
+    reason: str,
+    decision_log: DecisionLog,
+    client: LLMClient | None = None,
+) -> ReplanResult:
+    """The Change & Replanning Handler entry point (ARCHITECTURE.md section
+    3.8), called after run_all_trailers() has already produced trailers -
+    e.g. when a contract expires, audience data is corrected, or a policy
+    changes mid-run. `changed_fact` uses the same reference format segments
+    cite in `evidence` (e.g. "contract:music-03", "scene:07").
+
+    Walks `run_result.evidence_graph` backward from `changed_fact` via
+    ChangeHandler to find only the affected trailers/segments, then for each
+    affected audience re-invokes ONLY compose -> verify -> finalize (never
+    Strategist, and never an unaffected trailer) with the newly-invalidated
+    scenes excluded, via the same route_entry short-circuit build_pipeline()
+    sets up above. Each repaired trailer is re-indexed into the evidence
+    graph in place (index() drops that trailer's stale segments first, so a
+    scene that no longer appears is no longer tracked as citing anything).
+    """
+    client = client or LLMClient()
+    handler = ChangeHandler(run_result.evidence_graph)
+    result = handler.handle_change(changed_fact, reason)
+    decision_log.record_replan(result)
+
+    if not result.needs_replan:
+        return result
+
+    app = build_pipeline(client)
+    audience_by_trailer_id = {plan.trailer_id: audience for audience, plan in run_result.trailers.items()}
+
+    for trailer_id in result.affected_trailer_ids:
+        audience = audience_by_trailer_id.get(trailer_id)
+        if audience is None:
+            continue  # evidence graph referenced a trailer this run doesn't hold
+
+        # Segment ids are "<trailer_id>:<index>" (see EvidenceGraph.index);
+        # narrow the change's affected segments down to this trailer, then
+        # pull their scene ids so Composer excludes exactly what changed.
+        newly_excluded = sorted({
+            seg.video
+            for sid in result.affected_segment_ids
+            if sid.rsplit(":", 1)[0] == trailer_id
+            for seg in [run_result.evidence_graph.segment(sid)]
+            if seg is not None
+        })
+
+        repair_state: PipelineState = {
+            "audience": audience,
+            "story_map": run_result.story_map,
+            "constraint_map": run_result.constraint_map,
+            "scene_registry": run_result.scene_registry,
+            "audience_promise": run_result.audience_promises[audience],
+            "territory": run_result.territory,
+            "duration_seconds": run_result.duration_by_audience.get(audience, 30),
+            "max_repair_attempts": DEFAULT_MAX_REPAIR_ATTEMPTS,
+            "decision_log": decision_log,
+            "excluded_scene_ids": newly_excluded,
+            "repair_attempts": 0,
+        }
+        final_state = app.invoke(repair_state)
+        trailer_plan = final_state["trailer_plan"]
+
+        run_result.trailers[audience] = trailer_plan
+        run_result.evidence_graph.index(trailer_plan)
+
+    return result
