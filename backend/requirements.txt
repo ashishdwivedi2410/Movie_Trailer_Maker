@@ -1,0 +1,9 @@
+langgraph>=0.2
+anthropic
+fastapi
+uvicorn[standard]
+pydantic>=2
+python-dotenv
+redis
+pytest
+pytest-mock
