@@ -10,6 +10,7 @@ node, and a failure from either blocks the trailer or sends it back to the
 Composer - the graph structure is what makes generation and verification
 independent, not agent discipline. See ARCHITECTURE.md section 6.
 """
+from dataclasses import dataclass
 from typing import Literal
 
 from langgraph.graph import END, StateGraph
@@ -24,6 +25,8 @@ from src.ingest.contract_parser import parse_contracts
 from src.ingest.episode_loader import load_dialogue, load_episode, load_subtitle_track
 from src.ingest.policy_parser import parse_policies
 from src.llm.client import LLMClient
+from src.models.constraint_map import ConstraintMap
+from src.models.story_map import StoryMap
 from src.models.trailer import TrailerPlan, ValidationResult
 from src.observability.decision_log import DecisionLog
 from src.verification.checks import (
@@ -202,6 +205,13 @@ def build_pipeline(
     return graph.compile()
 
 
+@dataclass
+class RunResult:
+    story_map: StoryMap
+    constraint_map: ConstraintMap
+    trailers: dict[str, TrailerPlan]
+
+
 def run_all_trailers(
     episode_path: str,
     contracts_path: str,
@@ -212,16 +222,20 @@ def run_all_trailers(
     duration_by_audience: dict[str, int],
     decision_log: DecisionLog,
     client: LLMClient | None = None,
-) -> dict[str, TrailerPlan]:
+) -> RunResult:
     """Ingests once, builds the story/constraint maps once, then runs the
     per-audience graph for each of AUDIENCES. This is the top-level entry
-    point src/main.py calls.
+    point src/main.py and src/api.py call. Returns the story map and
+    constraint map alongside the three trailers since the submission
+    structure requires story_map.json / constraint_map.json as their own
+    files, not just embedded in each trailer.
 
     NOTE: load_episode / parse_contracts / parse_policies in src/ingest/ are
     still stubs pending a decision on the real supplied file formats - this
     function will raise NotImplementedError until those are filled in. The
     graph wiring above does not depend on that decision and is independently
-    runnable/testable with injected agents (see tests/test_pipeline.py).
+    runnable/testable with injected agents (see validate_pipeline.py-style
+    tests using build_pipeline() directly).
     """
     client = client or LLMClient()
 
@@ -256,4 +270,4 @@ def run_all_trailers(
         final_state = app.invoke(initial_state)
         results[audience] = final_state["trailer_plan"]
 
-    return results
+    return RunResult(story_map=story_map, constraint_map=constraint_map, trailers=results)
