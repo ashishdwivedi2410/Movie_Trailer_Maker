@@ -31,7 +31,7 @@ jobs:
         run: npx htmlhint "frontend/**/*.html"
 
       - name: Lint CSS
-        run: npx stylelint "frontend/css/**/*.css" --config '{"extends":"stylelint-config-standard"}'
+        run: npx stylelint "frontend/css/**/*.css"
 
       - name: Lint JavaScript
         run: npx eslint "frontend/js/**/*.js" --no-eslintrc --env browser,es2021 --parser-options=ecmaVersion:2021,sourceType:module

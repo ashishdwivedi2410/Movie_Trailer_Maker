@@ -1,4 +1,4 @@
-name: Backend CI
+name: Backend CI/CD
 
 on:
   push:
@@ -10,6 +10,9 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend.yml"
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/movie-trailer-maker-backend
 
 jobs:
   test:
@@ -33,14 +36,64 @@ jobs:
       - name: Run tests (mock mode - no API key needed)
         run: pytest -v
 
-  docker-build:
+  # Only builds + pushes on an actual push to main (not on PRs)
+  build-and-push:
     runs-on: ubuntu-latest
     needs: test
-    defaults:
-      run:
-        working-directory: backend
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t autonomous-trailer-director-backend .
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: meta
+        run: echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Deploy to EC2 over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
+            docker stop trailer-backend 2>/dev/null || true
+            docker rm trailer-backend 2>/dev/null || true
+            docker run -d \
+              --name trailer-backend \
+              --restart unless-stopped \
+              -p 8000:8000 \
+              --env-file /home/${{ secrets.EC2_USERNAME }}/backend.env \
+              ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
+            docker image prune -f
