@@ -34,7 +34,7 @@ jobs:
         run: npx stylelint "frontend/css/**/*.css"
 
       - name: Lint JavaScript
-        run: npx eslint "frontend/js/**/*.js" --no-eslintrc --env browser,es2021 --parser-options=ecmaVersion:2021,sourceType:module
+        run: npx eslint "frontend/js/**/*.js"
 
   deploy:
     name: Deploy to EC2
