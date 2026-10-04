@@ -17,6 +17,7 @@ env/
 
 # Backend run artifacts
 backend/sample_run/
+backend/runs/
 backend/fixtures/replay_cache.json
 
 # Frontend

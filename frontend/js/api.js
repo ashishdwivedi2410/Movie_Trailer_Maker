@@ -1,61 +1,91 @@
 /* =========================================================
    api.js — All backend communication lives here.
-   Swap API_BASE for the real backend URL when available.
    Every other module only talks to the backend through
    the functions exported from this file.
+
+   Backend routes (backend/src/api.py):
+     GET  /api/dialects          -> { dialects: string[] }
+     POST /api/generate-trailer  -> one trailer object
    ========================================================= */
 
-export const API_BASE = "/api"; // TODO: replace with real backend base URL
+// Same-origin by default (nginx proxies /api to the backend). To point the
+// page at another origin, set window.TRAILER_API_BASE before loading main.js,
+// e.g. "http://localhost:8000/api" (the backend then needs CORS_ORIGINS set).
+export const API_BASE = window.TRAILER_API_BASE || "/api";
 
-async function postFormData(url, formData) {
-  const res = await fetch(url, {
-    method: "POST",
-    body: formData
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Request failed (${res.status}): ${text || res.statusText}`);
+// Backend form-field names -> DOM ids, so server-side validation errors can
+// be shown next to the right input.
+const FIELD_IDS = {
+  episode_files: "input-episode-files",
+  scene_descriptions: "scene-descriptions",
+  scene_descriptions_file: "scene-descriptions-file",
+  dialogue_text: "dialogue-text",
+  subtitle_dialect_1: "subtitle-dialect-1",
+  subtitle_dialect_2: "subtitle-dialect-2",
+  rating_policies_file: "rating-policies-file",
+  contracts_file: "contracts-file",
+  audience_profiles_file: "audience-profiles-file",
+  historic_performance_file: "historic-performance-file",
+  cost_sheet_file: "cost-sheet-file",
+  category: "category-family",
+  dialect: "dialect-select"
+};
+
+/** Error thrown for any failed backend call. `fieldErrors` is [{field: <DOM id>, message}]. */
+export class ApiError extends Error {
+  constructor(message, { status = 0, fieldErrors = [] } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.fieldErrors = fieldErrors;
   }
-  return res.json();
 }
 
-async function getJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Request failed (${res.status}): ${res.statusText}`);
-  }
-  return res.json();
-}
-
-/** Submit all collected inputs + category/dialect as multipart form data. */
-export async function submitTrailerRequest(formData) {
-  return postFormData(`${API_BASE}/generate-trailer`, formData);
-}
-
-/** Poll for status if the backend supports async/long-running jobs. */
-export async function fetchTrailerStatus(trailerId) {
-  return getJSON(`${API_BASE}/trailer-status/${encodeURIComponent(trailerId)}`);
-}
-
-/** Dialect list for the "Dialect-region viewers" dropdown. */
-export async function fetchDialects() {
+async function errorFromResponse(res) {
+  let detail = null;
   try {
-    return await getJSON(`${API_BASE}/dialects`);
+    detail = (await res.json()).detail;
   } catch (err) {
-    // Placeholder fallback until the backend/dialect list is wired up
-    return ["Dialect A", "Dialect B", "Dialect C"];
+    // body was not JSON; fall through to the status text
   }
+
+  if (Array.isArray(detail)) {
+    // Our own validation errors: [{field, message}]. FastAPI's built-in ones
+    // look like [{loc, msg}] and have no `field`.
+    const fieldErrors = detail
+      .filter((d) => d && d.field)
+      .map((d) => ({ field: FIELD_IDS[d.field] || d.field, message: d.message }));
+    const messages = detail.map((d) => d.message || d.msg).filter(Boolean);
+    return new ApiError(messages.join(" ") || res.statusText, { status: res.status, fieldErrors });
+  }
+  if (typeof detail === "string" && detail) {
+    return new ApiError(detail, { status: res.status });
+  }
+  return new ApiError(`Request failed (${res.status}): ${res.statusText}`, { status: res.status });
 }
 
-/** Read-only reference data — fetched instead of uploaded, when available. */
-export async function fetchAudienceProfiles() {
-  return getJSON(`${API_BASE}/audience-profiles`);
+async function request(url, options) {
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (err) {
+    throw new ApiError("Could not reach the server. Check that the backend is running.");
+  }
+  if (!res.ok) throw await errorFromResponse(res);
+  return res.json();
 }
 
-export async function fetchHistoricPerformance() {
-  return getJSON(`${API_BASE}/historic-performance`);
+/** Submit all collected inputs + category/dialect as multipart form data. Resolves to ONE trailer object. */
+export async function submitTrailerRequest(formData) {
+  return request(`${API_BASE}/generate-trailer`, { method: "POST", body: formData });
 }
 
-export async function fetchCostSheet() {
-  return getJSON(`${API_BASE}/cost-sheet`);
+/** Dialect list for the "Dialect-region viewers" dropdown. Rejects (no fake fallback) if unavailable. */
+export async function fetchDialects() {
+  const data = await request(`${API_BASE}/dialects`);
+  const dialects = Array.isArray(data?.dialects) ? data.dialects : [];
+  if (dialects.length === 0) {
+    throw new ApiError("The server returned an empty dialect list.");
+  }
+  return dialects;
 }

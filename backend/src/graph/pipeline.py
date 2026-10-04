@@ -268,9 +268,11 @@ def run_all_trailers(
     duration_by_audience: dict[str, int],
     decision_log: DecisionLog,
     client: LLMClient | None = None,
+    audiences: tuple[str, ...] = AUDIENCES,
 ) -> RunResult:
     """Ingests once, builds the story/constraint maps once, then runs the
-    per-audience graph for each of AUDIENCES. This is the top-level entry
+    per-audience graph for each of `audiences` (all of AUDIENCES by default;
+    the web API passes just the one category the user picked). This is the top-level entry
     point src/main.py and src/api.py call. Returns the story map and
     constraint map alongside the three trailers since the submission
     structure requires story_map.json / constraint_map.json as their own
@@ -283,6 +285,10 @@ def run_all_trailers(
     runnable/testable with injected agents (see validate_pipeline.py-style
     tests using build_pipeline() directly).
     """
+    unknown = [a for a in audiences if a not in AUDIENCES]
+    if unknown or not audiences:
+        raise ValueError(f"audiences must be a non-empty subset of {AUDIENCES}, got {audiences!r}")
+
     client = client or LLMClient()
 
     registry = load_episode(episode_path)
@@ -300,7 +306,7 @@ def run_all_trailers(
     promises: dict[str, AudiencePromise] = {}
     evidence_graph = EvidenceGraph()
 
-    for audience in AUDIENCES:
+    for audience in audiences:
         initial_state: PipelineState = {
             "audience": audience,
             "story_map": story_map,

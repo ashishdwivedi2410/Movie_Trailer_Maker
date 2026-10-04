@@ -49,6 +49,7 @@ function renderBrief(trailer) {
     <dl class="brief-grid">
       <dt>Trailer ID</dt><dd>${escapeHTML(trailer.trailer_id) || "—"}</dd>
       <dt>Audience</dt><dd>${escapeHTML(trailer.audience) || "—"}</dd>
+      ${trailer.dialect ? `<dt>Dialect</dt><dd>${escapeHTML(trailer.dialect)}</dd>` : ""}
       <dt>Duration</dt><dd>${trailer.duration_seconds ?? "—"}s</dd>
       <dt>Central promise</dt><dd>${escapeHTML(trailer.audience_promise) || "—"}</dd>
     </dl>

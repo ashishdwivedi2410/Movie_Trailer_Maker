@@ -40,7 +40,8 @@ export function collectFormState() {
 export function buildFormData(state, category, dialect) {
   const fd = new FormData();
 
-  state.episodeFiles.forEach((file, i) => fd.append(`episode_files[${i}]`, file));
+  // Same field name repeated: the backend reads it as a list of files.
+  state.episodeFiles.forEach((file) => fd.append("episode_files", file));
   fd.append("scene_descriptions", state.sceneDescriptions);
   if (state.sceneDescriptionsFile) fd.append("scene_descriptions_file", state.sceneDescriptionsFile);
   fd.append("dialogue_text", state.dialogueText);

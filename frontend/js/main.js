@@ -4,7 +4,7 @@
    processing state, and output rendering.
    ========================================================= */
 
-import { submitTrailerRequest } from "./api.js";
+import { submitTrailerRequest, ApiError } from "./api.js";
 import { initCategorySelector, getSelectedCategory, getSelectedDialect } from "./category.js";
 import { collectFormState, buildFormData, initFileListDisplays } from "./inputs.js";
 import { validateTrailerForm, showFieldErrors } from "./validate.js";
@@ -88,8 +88,8 @@ async function handleSubmit(event) {
   setSubmitting(true);
   showProcessing();
 
-  // Simulated stage progression — swap for real progress polling
-  // (see fetchTrailerStatus in api.js) once the backend supports it.
+  // Simulated stage progression — swap for real progress polling once the
+  // backend reports stage-by-stage status (it currently answers in one request).
   let stageIndex = 1;
   const stageTimer = setInterval(() => {
     if (stageIndex < STAGES.length) {
@@ -106,6 +106,11 @@ async function handleSubmit(event) {
     renderTrailerOutput(trailer);
   } catch (err) {
     clearInterval(stageTimer);
+    if (err instanceof ApiError && err.fieldErrors.length > 0) {
+      // Server-side validation caught something the browser checks did not.
+      showFieldErrors(err.fieldErrors);
+      document.getElementById(err.fieldErrors[0].field)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
     showError(err.message || "Something went wrong while generating the trailer.");
   } finally {
     setSubmitting(false);
