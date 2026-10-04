@@ -1,3 +1,12 @@
 {
-  "dialects": []
+  "dialects": [
+    "Bhojpuri",
+    "Awadhi",
+    "Haryanvi",
+    "Rajasthani",
+    "American English",
+    "British English",
+    "Australian English",
+    "Indian English"
+  ]
 }
