@@ -34,6 +34,7 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 
 VALID_CATEGORIES = ("family", "young_adult", "dialect_region")
+MAX_DIALECT_CHARS = 60
 
 SUBTITLE_EXT = {".srt", ".vtt"}
 DOC_EXT = {".json", ".pdf"}
@@ -106,8 +107,7 @@ def _validate(
     historic_performance_file: UploadFile | None,
     cost_sheet_file: UploadFile | None,
     category: str,
-    dialect: str | None,
-    valid_dialects: list[str],
+    dialect: str,
 ) -> list[tuple[str, str]]:
     errors: list[tuple[str, str]] = []
 
@@ -156,9 +156,11 @@ def _validate(
         errors.append(("category", "Select a trailer category."))
     elif category == "dialect_region":
         if not dialect:
-            errors.append(("dialect", "Select a dialect for the regional campaign."))
-        elif dialect not in valid_dialects:
-            errors.append(("dialect", f"'{dialect}' is not one of the configured dialects."))
+            errors.append(("dialect", "Enter the dialect for the regional campaign."))
+        elif len(dialect) > MAX_DIALECT_CHARS:
+            errors.append(("dialect", f"Dialect must be {MAX_DIALECT_CHARS} characters or fewer."))
+        elif any(ord(c) < 32 or ord(c) == 127 for c in dialect):
+            errors.append(("dialect", "Dialect contains invalid characters."))
 
     return errors
 
@@ -212,9 +214,10 @@ def stage_request(
     cost_sheet_file: UploadFile | None,
     category: str,
     dialect: str | None,
-    valid_dialects: list[str],
 ) -> StagedRun:
     episodes = [f for f in (episode_files or []) if _present(f)]
+    # Free text typed by the user; only meaningful for the dialect-region category.
+    dialect_name = (dialect or "").strip()
     errors = _validate(
         episode_files=episodes,
         scene_descriptions=scene_descriptions,
@@ -228,8 +231,7 @@ def stage_request(
         historic_performance_file=historic_performance_file,
         cost_sheet_file=cost_sheet_file,
         category=category,
-        dialect=dialect,
-        valid_dialects=valid_dialects,
+        dialect=dialect_name,
     )
     if errors:
         raise field_errors(errors)
@@ -286,12 +288,12 @@ def stage_request(
 
     if category == "dialect_region":
         # The Strategist reads this from audience_profile.
-        profiles["dialect_region"] = {**profiles.get("dialect_region", {}), "dialect": dialect}
+        profiles["dialect_region"] = {**profiles.get("dialect_region", {}), "dialect": dialect_name}
 
     return StagedRun(
         run_id=run_id,
         category=category,
-        dialect=dialect,
+        dialect=dialect_name if category == "dialect_region" else None,
         inputs_dir=inputs,
         out_dir=out,
         contracts_path=contracts,

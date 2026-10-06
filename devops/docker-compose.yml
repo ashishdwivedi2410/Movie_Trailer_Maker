@@ -1,0 +1,65 @@
+# Production stack for AWS Lightsail: nginx (HTTPS + static frontend + /api proxy),
+# the FastAPI backend, and certbot (Let's Encrypt renewal).
+# Run from this directory. Settings come from ./.env (see .env.example);
+# the backend's own settings (API key, models) come from ./backend.env.
+name: movie-trailer-maker
+
+services:
+  backend:
+    image: theashishdwivedi/movie_trailer_maker:${IMAGE_TAG:-latest}
+    build: ../backend
+    restart: unless-stopped
+    env_file: ./backend.env
+    environment:
+      RUNS_DIR: /data/runs
+    volumes:
+      - runs:/data/runs
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in devops/.env}
+      NGINX_ENVSUBST_FILTER: DOMAIN
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ../site:/usr/share/nginx/html:ro
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    # Checks twice a day; certbot only renews certificates that are near expiry.
+    # nginx picks up the new certificate on its next reload (see scripts/deploy.sh).
+    entrypoint: >
+      /bin/sh -c 'trap exit TERM;
+      while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+
+volumes:
+  runs:
+  certbot-conf:
+  certbot-www:

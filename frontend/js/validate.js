@@ -90,15 +90,15 @@ export function validateTrailerForm(state) {
 
   if (!state.category) {
     errors.push({
-      field: "category-family",
+      field: "category-group",
       message: "Select a trailer category."
     });
   }
 
   if (state.category === "dialect_region" && !state.dialect) {
     errors.push({
-      field: "dialect-select",
-      message: "Select a dialect for the regional campaign."
+      field: "dialect-input",
+      message: "Enter the dialect for the regional campaign."
     });
   }
 
@@ -118,7 +118,29 @@ export function showFieldErrors(errors) {
 
     const msg = document.createElement("p");
     msg.className = "field-error";
+    msg.dataset.for = field;
     msg.textContent = message;
     input.insertAdjacentElement("afterend", msg);
   });
+}
+
+/** Removes the error (and red outline) from one field. Safe to call on any element. */
+export function clearFieldError(el) {
+  if (!el || !el.id) return;
+  el.classList.remove("is-invalid");
+  document.querySelectorAll(".field-error").forEach((msg) => {
+    if (msg.dataset.for === el.id) msg.remove();
+  });
+}
+
+/** Clears a field's error as soon as the user edits or fixes it, instead of waiting for the next submit. */
+export function initLiveErrorClearing(form) {
+  const handler = (event) => {
+    const target = event.target;
+    clearFieldError(target.closest(".is-invalid") || target);
+    // Changing the category also invalidates any stale dialect error.
+    if (target.name === "category") clearFieldError(document.getElementById("dialect-input"));
+  };
+  form.addEventListener("input", handler);
+  form.addEventListener("change", handler);
 }

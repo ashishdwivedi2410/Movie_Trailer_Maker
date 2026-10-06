@@ -33,8 +33,7 @@ Routes used by the web frontend (`frontend/js/api.js`):
 
 | Route | Purpose |
 |---|---|
-| `GET /api/dialects` | `{"dialects": [...]}` for the dialect dropdown. Read from `data/dialects.json` (or `DIALECTS_FILE`); answers **503** with the reason if the list is missing or empty. |
-| `POST /api/generate-trailer` | Multipart form (see field names in `src/uploads.py`). Runs **only the selected category** and returns **one trailer object** (plus `run_id`, and `dialect` for dialect-region). **422** carries `[{"field", "message"}]` per bad input; **413** if a file is over the limit; **501** while the `src/ingest/` parsers are unimplemented. |
+| `POST /api/generate-trailer` | Multipart form (see field names in `src/uploads.py`). Runs **only the selected category** and returns **one trailer object** (plus `run_id`, and the user-typed `dialect` for dialect-region). **422** carries `[{"field", "message"}]` per bad input; **413** if a file is over the limit; **501** while the `src/ingest/` parsers are unimplemented. |
 
 Uploads are staged per request under `RUNS_DIR/<run_id>/inputs/` (layout documented in `src/uploads.py`); the client never supplies a server path.
 
@@ -42,7 +41,6 @@ Optional settings (environment variables):
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DIALECTS_FILE` | `data/dialects.json` | Dialect list served to the frontend |
 | `RUNS_DIR` | `runs` | Where per-request uploads and outputs are written |
 | `MAX_UPLOAD_MB` | `500` | Per-file upload limit |
 | `CORS_ORIGINS` | *(none)* | Comma-separated origins, only needed when the frontend is served from a different origin than the API |

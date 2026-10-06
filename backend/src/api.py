@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.config import settings
-from src.dialects import DialectsUnavailable, load_dialects
 from src.graph.pipeline import run_all_trailers
 from src.observability.decision_log import DecisionLog
 from src.uploads import stage_request
@@ -83,14 +82,6 @@ def generate_trailers(request: GenerateTrailersRequest) -> dict:
 # --- Routes used by the web frontend (frontend/js/api.js) -------------------
 
 
-@app.get("/api/dialects")
-def list_dialects() -> dict:
-    try:
-        return {"dialects": load_dialects()}
-    except DialectsUnavailable as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-
-
 @app.post("/api/generate-trailer")
 def generate_trailer(
     episode_files: Annotated[list[UploadFile] | None, File()] = None,
@@ -109,13 +100,6 @@ def generate_trailer(
 ) -> dict:
     """Runs the pipeline for the ONE category the user picked and returns that
     single trailer object (the shape frontend/js/render-output.js renders)."""
-    valid_dialects: list[str] = []
-    if category == "dialect_region":
-        try:
-            valid_dialects = load_dialects()
-        except DialectsUnavailable as e:
-            raise HTTPException(status_code=503, detail=str(e)) from e
-
     # Raises 422 (field-level messages) / 413 before anything is run.
     staged = stage_request(
         episode_files=episode_files,
@@ -131,7 +115,6 @@ def generate_trailer(
         cost_sheet_file=cost_sheet_file,
         category=category,
         dialect=dialect,
-        valid_dialects=valid_dialects,
     )
 
     decision_log = DecisionLog(path=str(staged.out_dir / "decision_log.jsonl"))

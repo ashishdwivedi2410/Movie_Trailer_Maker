@@ -45,7 +45,7 @@ frontend/
 
 **Category selection** (after inputs):
 - Family viewers / Young Adult viewers / Dialect-region viewers
-- If Dialect-region is selected → dropdown of dialects
+- If Dialect-region is selected → free-text field to type the dialect name
 
 ---
 

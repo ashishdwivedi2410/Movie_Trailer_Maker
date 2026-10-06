@@ -1,0 +1,98 @@
+# Rendered by the nginx image at start-up: ${DOMAIN} comes from devops/.env.
+# IPv4 only: Docker containers do not have IPv6 unless you enable it, and
+# listening on [::] would stop nginx from starting.
+
+# Rate-limit only the expensive endpoint (it runs paid model calls): 6 per
+# minute per client IP, with a small burst. Every other request has an empty
+# key, which nginx does not limit.
+map $request_uri $trailer_limit_key {
+    default "";
+    ~^/api/generate-trailer $binary_remote_addr;
+}
+limit_req_zone $trailer_limit_key zone=trailer_gen:10m rate=6r/m;
+
+# Docker's built-in DNS, so a restarted backend container is found again
+# without restarting nginx.
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    # Let's Encrypt HTTP-01 challenge.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://${DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    # Episode videos are uploaded through this server. The backend enforces its
+    # own per-file limit (MAX_UPLOAD_MB); this is the ceiling for one request.
+    client_max_body_size 1g;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Uptime checks / deploy health check.
+    location = /health {
+        access_log off;
+        set $backend_health http://backend:8000/health;
+        proxy_pass $backend_health;
+    }
+
+    # The only backend routes exposed publicly. (The backend's older /trailers
+    # route, which takes server-side file paths, and /docs are NOT proxied.)
+    location /api/ {
+        limit_req zone=trailer_gen burst=3 nodelay;
+        limit_req_status 429;
+
+        set $backend http://backend:8000;
+        proxy_pass $backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Stream large uploads straight to the backend instead of buffering
+        # them to nginx's disk first; model runs can take minutes.
+        proxy_request_buffering off;
+        client_body_timeout 300s;
+        proxy_send_timeout 900s;
+        proxy_read_timeout 900s;
+    }
+
+    # Static frontend. Files are not fingerprinted, so make browsers revalidate.
+    location / {
+        try_files $uri $uri/ =404;
+        expires -1;
+    }
+
+    location ~ /\. {
+        return 404;
+    }
+}

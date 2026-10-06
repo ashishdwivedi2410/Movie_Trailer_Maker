@@ -4,7 +4,6 @@
    the functions exported from this file.
 
    Backend routes (backend/src/api.py):
-     GET  /api/dialects          -> { dialects: string[] }
      POST /api/generate-trailer  -> one trailer object
    ========================================================= */
 
@@ -27,8 +26,8 @@ const FIELD_IDS = {
   audience_profiles_file: "audience-profiles-file",
   historic_performance_file: "historic-performance-file",
   cost_sheet_file: "cost-sheet-file",
-  category: "category-family",
-  dialect: "dialect-select"
+  category: "category-group",
+  dialect: "dialect-input"
 };
 
 /** Error thrown for any failed backend call. `fieldErrors` is [{field: <DOM id>, message}]. */
@@ -78,14 +77,4 @@ async function request(url, options) {
 /** Submit all collected inputs + category/dialect as multipart form data. Resolves to ONE trailer object. */
 export async function submitTrailerRequest(formData) {
   return request(`${API_BASE}/generate-trailer`, { method: "POST", body: formData });
-}
-
-/** Dialect list for the "Dialect-region viewers" dropdown. Rejects (no fake fallback) if unavailable. */
-export async function fetchDialects() {
-  const data = await request(`${API_BASE}/dialects`);
-  const dialects = Array.isArray(data?.dialects) ? data.dialects : [];
-  if (dialects.length === 0) {
-    throw new ApiError("The server returned an empty dialect list.");
-  }
-  return dialects;
 }

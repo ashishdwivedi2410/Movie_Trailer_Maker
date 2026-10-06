@@ -16,9 +16,6 @@ client = TestClient(api.app)
 @pytest.fixture(autouse=True)
 def isolated_dirs(tmp_path, monkeypatch):
     monkeypatch.setenv("RUNS_DIR", str(tmp_path / "runs"))
-    dialects = tmp_path / "dialects.json"
-    dialects.write_text(json.dumps({"dialects": ["Dialect One", "Dialect Two"]}))
-    monkeypatch.setenv("DIALECTS_FILE", str(dialects))
     return tmp_path
 
 
@@ -73,35 +70,6 @@ def _field_errors(resp):
     return {e["field"]: e["message"] for e in resp.json()["detail"]}
 
 
-# --- /api/dialects ---------------------------------------------------------
-
-
-def test_dialects_returns_configured_list():
-    r = client.get("/api/dialects")
-    assert r.status_code == 200
-    assert r.json() == {"dialects": ["Dialect One", "Dialect Two"]}
-
-
-def test_dialects_503_when_list_is_empty(tmp_path, monkeypatch):
-    empty = tmp_path / "empty.json"
-    empty.write_text('{"dialects": []}')
-    monkeypatch.setenv("DIALECTS_FILE", str(empty))
-    r = client.get("/api/dialects")
-    assert r.status_code == 503
-    assert "No dialects are configured" in r.json()["detail"]
-
-
-def test_dialects_503_when_file_missing(tmp_path, monkeypatch):
-    monkeypatch.setenv("DIALECTS_FILE", str(tmp_path / "nope.json"))
-    assert client.get("/api/dialects").status_code == 503
-
-
-def test_shipped_dialects_file_is_valid_json_in_expected_shape():
-    from src.dialects import DEFAULT_PATH
-    data = json.loads(Path(DEFAULT_PATH).read_text())
-    assert isinstance(data["dialects"], list)
-
-
 # --- /api/generate-trailer: shape and routing -------------------------------
 
 
@@ -117,11 +85,21 @@ def test_runs_only_the_selected_category_and_returns_one_trailer(fake_pipeline, 
     assert fake_pipeline[0]["audiences"] == (category,)
 
 
-def test_dialect_region_passes_chosen_dialect_to_strategist(fake_pipeline):
-    r = _post(data=_form(category="dialect_region", dialect="Dialect Two"))
+def test_dialect_region_passes_typed_dialect_to_strategist(fake_pipeline):
+    r = _post(data=_form(category="dialect_region", dialect="  Bhojpuri  "))
     assert r.status_code == 200, r.text
-    assert r.json()["dialect"] == "Dialect Two"
-    assert fake_pipeline[0]["audience_profiles"]["dialect_region"]["dialect"] == "Dialect Two"
+    assert r.json()["dialect"] == "Bhojpuri"  # trimmed
+    assert fake_pipeline[0]["audience_profiles"]["dialect_region"]["dialect"] == "Bhojpuri"
+
+
+def test_any_dialect_name_is_accepted(fake_pipeline):
+    for name in ("Kanpuri Hindi", "Hinglish", "Bhojpuri (Purvanchal)"):
+        assert _post(data=_form(category="dialect_region", dialect=name)).status_code == 200
+
+
+def test_dialect_ignored_for_other_categories(fake_pipeline):
+    r = _post(data=_form(category="family", dialect="Bhojpuri"))
+    assert r.status_code == 200 and "dialect" not in r.json()
 
 
 def test_staged_layout_and_paths_passed_to_pipeline(fake_pipeline):
@@ -187,17 +165,16 @@ def test_wrong_extensions_rejected(fake_pipeline):
     assert fake_pipeline == []
 
 
-def test_dialect_region_requires_a_known_dialect(fake_pipeline):
+def test_dialect_region_requires_a_dialect(fake_pipeline):
     assert "dialect" in _field_errors(_post(data=_form(category="dialect_region")))
-    r = _post(data=_form(category="dialect_region", dialect="Made Up"))
-    assert r.status_code == 422 and "dialect" in _field_errors(r)
+    assert "dialect" in _field_errors(_post(data=_form(category="dialect_region", dialect="   ")))
     assert fake_pipeline == []
 
 
-def test_dialect_region_503_when_no_dialects_configured(tmp_path, monkeypatch, fake_pipeline):
-    monkeypatch.setenv("DIALECTS_FILE", str(tmp_path / "missing.json"))
-    r = _post(data=_form(category="dialect_region", dialect="x"))
-    assert r.status_code == 503
+def test_dialect_too_long_or_with_control_chars_rejected(fake_pipeline):
+    assert "dialect" in _field_errors(_post(data=_form(category="dialect_region", dialect="x" * 61)))
+    assert "dialect" in _field_errors(_post(data=_form(category="dialect_region", dialect="bad\x00name")))
+    assert fake_pipeline == []
 
 
 def test_unknown_category_rejected(fake_pipeline):

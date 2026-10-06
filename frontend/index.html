@@ -159,7 +159,7 @@
         <div class="section-title">
           <h2>Trailer category</h2>
         </div>
-        <fieldset class="category-choices">
+        <fieldset class="category-choices" id="category-group">
           <legend class="visually-hidden">Choose a trailer category</legend>
 
           <label class="category-option">
@@ -189,10 +189,15 @@
 
         <div class="dialect-dropdown" id="dialect-dropdown-wrapper" hidden>
           <div class="field">
-            <label for="dialect-select">Dialect</label>
-            <select id="dialect-select" name="dialect">
-              <option value="">Loading dialects…</option>
-            </select>
+            <label for="dialect-input">Dialect</label>
+            <input
+              type="text"
+              id="dialect-input"
+              name="dialect"
+              maxlength="60"
+              autocomplete="off"
+              placeholder="e.g. Bhojpuri"
+            />
           </div>
         </div>
       </section>

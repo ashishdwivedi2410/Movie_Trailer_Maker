@@ -7,7 +7,7 @@
 import { submitTrailerRequest, ApiError } from "./api.js";
 import { initCategorySelector, getSelectedCategory, getSelectedDialect } from "./category.js";
 import { collectFormState, buildFormData, initFileListDisplays } from "./inputs.js";
-import { validateTrailerForm, showFieldErrors } from "./validate.js";
+import { validateTrailerForm, showFieldErrors, initLiveErrorClearing } from "./validate.js";
 import { renderTrailerOutput } from "./render-output.js";
 
 // Placeholder stage labels shown while waiting on the backend.
@@ -127,7 +127,10 @@ function initRetry() {
 
 function init() {
   const form = document.getElementById("trailer-form");
-  if (form) form.addEventListener("submit", handleSubmit);
+  if (form) {
+    form.addEventListener("submit", handleSubmit);
+    initLiveErrorClearing(form);
+  }
   initFileListDisplays();
   initCategorySelector();
   initRetry();
