@@ -1,100 +1,30 @@
 /* =========================================================
    category.js — Family / Young Adult / Dialect-region
-   selector, and the dialect dropdown that appears when
-   Dialect-region is chosen.
-
-   The dialect list comes from the backend. If it cannot be
-   loaded the dropdown says so and offers a retry — it never
-   falls back to made-up dialects.
+   selector, and the free-text dialect field that appears
+   when Dialect-region is chosen. The dialect is typed by
+   the user; there is no fixed list.
    ========================================================= */
 
-import { fetchDialects } from "./api.js";
-
 const WRAPPER_ID = "dialect-dropdown-wrapper";
-const SELECT_ID = "dialect-select";
-const STATUS_ID = "dialect-status";
+const INPUT_ID = "dialect-input";
 const DIALECT_VALUE = "dialect_region";
 
-let dialectsLoaded = false;
-let dialectsLoading = false;
-
-function setOptions(select, options) {
-  select.innerHTML = "";
-  options.forEach(({ value, label }) => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    select.appendChild(option);
-  });
-}
-
-function clearStatus() {
-  document.getElementById(STATUS_ID)?.remove();
-}
-
-function showLoadError(select, message) {
-  clearStatus();
-  const status = document.createElement("div");
-  status.id = STATUS_ID;
-  status.className = "dialect-status";
-  status.setAttribute("role", "alert");
-
-  const text = document.createElement("span");
-  text.textContent = `Could not load the dialect list. ${message}`;
-
-  const retry = document.createElement("button");
-  retry.type = "button";
-  retry.className = "btn-link";
-  retry.textContent = "Retry";
-  retry.addEventListener("click", () => loadDialects(select));
-
-  status.append(text, " ", retry);
-  select.insertAdjacentElement("afterend", status);
-}
-
-async function loadDialects(select) {
-  if (dialectsLoading) return;
-  dialectsLoading = true;
-  clearStatus();
-  select.disabled = true;
-  setOptions(select, [{ value: "", label: "Loading dialects…" }]);
-
-  try {
-    const dialects = await fetchDialects();
-    setOptions(select, [
-      { value: "", label: "Select a dialect" },
-      ...dialects.map((d) => ({ value: d, label: d }))
-    ]);
-    select.disabled = false;
-    dialectsLoaded = true;
-  } catch (err) {
-    setOptions(select, [{ value: "", label: "Dialects unavailable" }]);
-    showLoadError(select, err.message || "");
-  } finally {
-    dialectsLoading = false;
-  }
-}
-
-/** Wires show/hide behavior and loads the dialect dropdown. */
+/** Wires show/hide behavior for the dialect field. */
 export function initCategorySelector() {
   const radios = document.querySelectorAll('input[name="category"]');
   const wrapper = document.getElementById(WRAPPER_ID);
-  const select = document.getElementById(SELECT_ID);
 
-  if (!radios.length || !wrapper || !select) return;
+  if (!radios.length || !wrapper) return;
 
   radios.forEach((radio) => {
     radio.addEventListener("change", () => {
       wrapper.hidden = radio.value !== DIALECT_VALUE;
-      // If the first attempt failed (backend was down), try again when the user needs the list.
-      if (!wrapper.hidden && !dialectsLoaded) loadDialects(select);
+      if (!wrapper.hidden) document.getElementById(INPUT_ID)?.focus();
     });
   });
 
   const checked = document.querySelector('input[name="category"]:checked');
   wrapper.hidden = !(checked && checked.value === DIALECT_VALUE);
-
-  loadDialects(select);
 }
 
 export function getSelectedCategory() {
@@ -102,9 +32,10 @@ export function getSelectedCategory() {
   return checked ? checked.value : null;
 }
 
+/** The dialect the user typed, or null if the field is hidden or empty. */
 export function getSelectedDialect() {
   const wrapper = document.getElementById(WRAPPER_ID);
-  const select = document.getElementById(SELECT_ID);
-  if (!wrapper || !select || wrapper.hidden || select.disabled) return null;
-  return select.value || null;
+  const input = document.getElementById(INPUT_ID);
+  if (!wrapper || !input || wrapper.hidden) return null;
+  return input.value.trim() || null;
 }
