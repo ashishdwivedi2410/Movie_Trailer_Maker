@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: theashishdwivedi/movie_trailer_maker
+  IMAGE: ashishdwivedi2410/movie_trailer_maker:latest
   DOMAIN: livetestingserver.com
   REMOTE_DIR: /opt/movie-trailer-maker
 
