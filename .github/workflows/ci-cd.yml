@@ -80,22 +80,51 @@ jobs:
 
       - name: Set up SSH
         env:
-          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          HOST: ${{ secrets.LIGHTSAIL_HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          HOST: ${{ secrets.HOST }}
+          SSH_USER: ${{ secrets.USER }}
         run: |
+          for v in SSH_KEY HOST SSH_USER; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Secret for $v is empty. Check Settings > Secrets and variables > Actions (SSH_KEY, HOST, USER)."
+              exit 1
+            fi
+          done
+
           mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 700 ~/.ssh
+
+          # Strip Windows line endings (\r) that break pasted keys.
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+
+          # Fails with a clear message if the key is malformed.
+          echo "Fingerprint of the key GitHub is using:"
+          ssh-keygen -lf ~/.ssh/id_ed25519 || { echo "::error::SSH_KEY secret is not a valid private key"; exit 1; }
+
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host $HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Test SSH connection
+        env:
+          TARGET: ${{ secrets.USER }}@${{ secrets.HOST }}
+        run: ssh -o BatchMode=yes "$TARGET" "echo connected as $(whoami)"
 
       - name: Upload devops files and frontend
         env:
-          TARGET: ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}
+          TARGET: ${{ secrets.USER }}@${{ secrets.HOST }}
         run: bash devops/scripts/push-to-server.sh "$TARGET" "$REMOTE_DIR"
 
       - name: Pull image and restart
         env:
-          TARGET: ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }}
+          TARGET: ${{ secrets.USER }}@${{ secrets.HOST }}
         run: ssh "$TARGET" "bash $REMOTE_DIR/devops/scripts/deploy.sh"
 
       - name: Health check
